@@ -1,16 +1,16 @@
-The FreeBSD sort program reads lines from input or from a file and produces the same lines in sorted order. NetBSD has an equivalent program, as does the GNU Project. Recently, we received a bug report that described how FreeBSD sort was much slower than NetBSD sort and GNU sort (gsort).
+The FreeBSD sort program reads lines from input or from a file and produces the same lines in sorted order. NetBSD has an equivalent program, as does the GNU Project. Recently, we received a bug report that described how FreeBSD sort was much slower than NetBSD sort and GNU sort.
 
-The submitter gave some sample data:
+I generated some sample data and gave it a try. I used numerical sorting, hence the `-n` flag:
 
 ```
-time sort -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null                   # NetBSD
-    1.409u 2.548s 0:03.95 99.7%     0+0k 0+0io 0pf+0w
+time sort -n test.txt -o /dev/null                               # FreeBSD
+      39.13 real        38.65 user         0.49 sys
 
-time sort -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null                   # FreeBSD
-    24.574u 0.795s 0:25.37 99.9%	55+172k 0+0io 0pf+0w
+time sort -n test.txt -o /dev/null                               # NetBSD
+        3.51 real         2.89 user         0.58 sys
 
-time gsort --parallel=1 -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null     # GNU
-    3.005u 0.149s 0:03.16 99.3%	152+177k 6+0io 3pf+0w
+time gsort -n --parallel=1 test.txt -o /dev/null                 # GNU
+        6.34 real         5.69 user         0.64 sys
 ```
 
 Indeed, that's significantly slower! Intrigued, I first took a look at the source code for sort, but nothing seemed out of the ordinary. This meant I would need to use some profiling tools to identify the root of the problem.
