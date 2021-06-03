@@ -3,14 +3,14 @@ The FreeBSD sort program reads lines from input or from a file and produces the 
 The submitter gave some sample data:
 
 ```
-NetBSD netbsd9.acadix  ~/Prog/Src/peak-classifier 435: (pkgsrc): time sort -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null
-1.409u 2.548s 0:03.95 99.7%     0+0k 0+0io 0pf+0w
+time sort -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null                   # NetBSD
+    1.409u 2.548s 0:03.95 99.7%     0+0k 0+0io 0pf+0w
 
-FreeBSD coral.acadix  ~/Prog/Src/peak-classifier 1005: time sort -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null
-24.574u 0.795s 0:25.37 99.9%	55+172k 0+0io 0pf+0w
+time sort -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null                   # FreeBSD
+    24.574u 0.795s 0:25.37 99.9%	55+172k 0+0io 0pf+0w
 
-FreeBSD coral.acadix  ~/Prog/Src/peak-classifier 1006: time gsort --parallel=1 -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null
-3.005u 0.149s 0:03.16 99.3%	152+177k 6+0io 3pf+0w
+time gsort --parallel=1 -n -k 1 -k 2 -k 3 pc-gff-stripped.bed > /dev/null     # GNU
+    3.005u 0.149s 0:03.16 99.3%	152+177k 6+0io 3pf+0w
 ```
 
 Indeed, that's significantly slower! Intrigued, I first took a look at the source code for sort, but nothing seemed out of the ordinary. This meant I would need to use some profiling tools to identify the root of the problem.
@@ -42,12 +42,12 @@ $ callgrind_annotate callgrind.out.PID
 I got some output that looked like this:
 
 ```
-6,737,057,366 (24.58%)  ???:__tls_get_addr [/libexec/ld-elf.so.1]
-4,840,293,520 (17.66%)  ???:___mb_cur_max [/lib/libc.so.7]
-2,996,188,932 (10.93%)  ???:read_number [/usr/home/c/src/freebsd/head/usr.bin/sort/sort]
+81,626,980,838 (25.33%)  ???:__tls_get_addr [/libexec/ld-elf.so.1]
+59,017,375,040 (18.31%)  ???:___mb_cur_max [/lib/libc.so.7]
+36,767,692,280 (11.41%)  ???:read_number [/usr/home/c/Repo/freebsd-src/usr.bin/sort/sort]
 ```
 
-This means that about 25% of all instructions executed during execution of the program occurred in calls to the function `__tls_get_addr`, a remaining 18% occurred in `___mb_cur_max`, and finally, 11% occurred in `read_number`. Note that these counts are exclusive; for example, if read_number calls `___mb_cur_max`, the instructions in `___mb_cur_max` won't be added to the instructions in `read_number`. 
+This means that about 25% of all instructions executed during execution of the program occurred in calls to the function `__tls_get_addr`, a remaining 18% occurred in `___mb_cur_max`, and finally, 11% occurred in `read_number`. Note that these counts are exclusive; for example, if `read_number` calls `___mb_cur_max`, the instructions in `___mb_cur_max` won't be added to the instructions in `read_number`. 
 
 Just what are these functions? The two most-used functions, `__tld_get_addr` and `___mb_cur_max`, don't occur anywhere in the source code. It turns out that these two functions get called when the value `MB_CUR_MAX` is used. Although this value appears to be a compile-time constant, it isn't. 
 
